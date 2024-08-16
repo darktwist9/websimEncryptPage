@@ -1,0 +1,250 @@
+<html><head><base href="/" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Encryption and Decryption Application</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.9.359/pdf.min.js"></script>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #f0f0f0;
+  }
+  h1, h2 {
+    color: #333;
+    text-align: center;
+  }
+  .container {
+    background-color: white;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+  }
+  textarea {
+    width: 100%;
+    height: 100px;
+    margin-bottom: 10px;
+  }
+  select, button, input[type="file"] {
+    margin-bottom: 10px;
+    display: block;
+    width: 100%;
+  }
+  #result, #encryptionTable, #decryptionTable {
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    padding: 10px;
+    background-color: #f9f9f9;
+  }
+  .file-upload {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .file-upload label {
+    flex-grow: 1;
+    margin-right: 10px;
+  }
+  .button-group {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  .button-group button {
+    width: 48%;
+    margin-bottom: 10px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>Encryption and Decryption Application</h1>
+    <textarea id="input" placeholder="Enter text to encrypt or decrypt"></textarea>
+    <select id="byteSize">
+      <option value="2">2 bytes</option>
+      <option value="4">4 bytes</option>
+      <option value="8">8 bytes</option>
+      <option value="16">16 bytes</option>
+      <option value="32">32 bytes</option>
+    </select>
+    <button onclick="encrypt()">Encrypt</button>
+    <button onclick="decrypt()">Decrypt</button>
+    <div class="file-upload">
+      <label for="encryptedFile">Upload Encrypted File (TXT or PDF):</label>
+      <input type="file" id="encryptedFile" accept=".txt,.pdf">
+    </div>
+    <div class="file-upload">
+      <label for="encryptionTableFile">Upload Encryption Table (TXT or PDF):</label>
+      <input type="file" id="encryptionTableFile" accept=".txt,.pdf">
+    </div>
+    <div class="button-group">
+      <button onclick="downloadEncrypted('txt')">Download Encrypted Message (TXT)</button>
+      <button onclick="downloadEncryptionTable('txt')">Download Cipher Key Table (TXT)</button>
+      <button onclick="downloadEncrypted('pdf')">Download Encrypted Message (PDF)</button>
+      <button onclick="downloadEncryptionTable('pdf')">Download Cipher Key Table (PDF)</button>
+    </div>
+    <h2>Result:</h2>
+    <pre id="result"></pre>
+  </div>
+
+  <div class="container">
+    <h2>Encryption Table:</h2>
+    <pre id="encryptionTable"></pre>
+  </div>
+
+  <div class="container">
+    <h2>Decryption Table:</h2>
+    <pre id="decryptionTable"></pre>
+  </div>
+
+  <script>
+    let encryptionTable = {};
+    let decryptionTable = {};
+    let lastEncryptedMessage = '';
+
+    function generateEncryptionTable(byteSize) {
+      const table = {};
+      const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+{}[]|;:,.<>?';
+      for (let i = 0; i < 256; i++) {
+        let encrypted = '';
+        for (let j = 0; j < byteSize; j++) {
+          encrypted += characters[Math.floor(Math.random() * characters.length)];
+        }
+        table[String.fromCharCode(i)] = encrypted;
+      }
+      return table;
+    }
+
+    function encrypt() {
+      const input = document.getElementById('input').value;
+      const byteSize = parseInt(document.getElementById('byteSize').value);
+      encryptionTable = generateEncryptionTable(byteSize);
+      decryptionTable = Object.fromEntries(Object.entries(encryptionTable).map(([k, v]) => [v, k]));
+
+      let encrypted = '';
+      for (let char of input) {
+        encrypted += encryptionTable[char] || char;
+      }
+
+      lastEncryptedMessage = encrypted;
+      document.getElementById('result').textContent = encrypted;
+      document.getElementById('encryptionTable').textContent = JSON.stringify(encryptionTable, null, 2);
+      document.getElementById('decryptionTable').textContent = JSON.stringify(decryptionTable, null, 2);
+    }
+
+    function decrypt() {
+      const input = document.getElementById('input').value;
+      const byteSize = parseInt(document.getElementById('byteSize').value);
+      
+      if (Object.keys(decryptionTable).length === 0) {
+        alert('Please encrypt a message or upload an encryption table file first.');
+        return;
+      }
+
+      let decrypted = '';
+      for (let i = 0; i < input.length; i += byteSize) {
+        const chunk = input.substr(i, byteSize);
+        decrypted += decryptionTable[chunk] || chunk;
+      }
+
+      document.getElementById('result').textContent = decrypted;
+    }
+
+    function downloadFile(filename, content) {
+      const element = document.createElement('a');
+      element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
+      element.setAttribute('download', filename);
+      element.style.display = 'none';
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+    }
+
+    function downloadEncrypted(format) {
+      if (lastEncryptedMessage) {
+        if (format === 'txt') {
+          downloadFile('encrypted.txt', lastEncryptedMessage);
+        } else if (format === 'pdf') {
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF();
+          doc.text(lastEncryptedMessage, 10, 10);
+          doc.save('encrypted.pdf');
+        }
+      } else {
+        alert('Please encrypt a message first.');
+      }
+    }
+
+    function downloadEncryptionTable(format) {
+      if (Object.keys(encryptionTable).length > 0) {
+        const content = JSON.stringify(encryptionTable, null, 2);
+        if (format === 'txt') {
+          downloadFile('encryption_table.txt', content);
+        } else if (format === 'pdf') {
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF();
+          doc.text(content, 10, 10);
+          doc.save('encryption_table.pdf');
+        }
+      } else {
+        alert('Please encrypt a message first to generate an encryption table.');
+      }
+    }
+
+    async function readFileContent(file) {
+      return new Promise((resolve, reject) => {
+        if (file.type === 'application/pdf') {
+          const reader = new FileReader();
+          reader.onload = async function(e) {
+            const typedarray = new Uint8Array(e.target.result);
+            const pdf = await pdfjsLib.getDocument(typedarray).promise;
+            let content = '';
+            for (let i = 1; i <= pdf.numPages; i++) {
+              const page = await pdf.getPage(i);
+              const textContent = await page.getTextContent();
+              content += textContent.items.map(item => item.str).join(' ');
+            }
+            resolve(content);
+          };
+          reader.readAsArrayBuffer(file);
+        } else {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            resolve(e.target.result);
+          };
+          reader.readAsText(file);
+        }
+      });
+    }
+
+    document.getElementById('encryptedFile').addEventListener('change', async function(event) {
+      const file = event.target.files[0];
+      const content = await readFileContent(file);
+      document.getElementById('input').value = content;
+    });
+
+    document.getElementById('encryptionTableFile').addEventListener('change', async function(event) {
+      const file = event.target.files[0];
+      const content = await readFileContent(file);
+      try {
+        encryptionTable = JSON.parse(content);
+        decryptionTable = Object.fromEntries(Object.entries(encryptionTable).map(([k, v]) => [v, k]));
+        document.getElementById('encryptionTable').textContent = JSON.stringify(encryptionTable, null, 2);
+        document.getElementById('decryptionTable').textContent = JSON.stringify(decryptionTable, null, 2);
+        alert('Encryption table loaded successfully.');
+      } catch (error) {
+        alert('Error loading encryption table. Please make sure the file contains valid JSON.');
+      }
+    });
+
+    // Initialize PDF.js
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.9.359/pdf.worker.min.js';
+  </script>
+</body>
+</html>
